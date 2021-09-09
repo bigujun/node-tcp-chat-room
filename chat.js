@@ -3,7 +3,10 @@ const { Transform, Writable, pipeline } = require('stream')
 const colors = require('./colors')
 const { createWriteStream, createReadStream } = require('fs')
 
-const historyFileName = 'history.txt'
+const PORT = process.env.PORT || 3333
+const HOST = process.env.HOST
+
+const historyFileName = `history-${PORT}.txt`
 
 /**  @typedef {{id: number, client: NodeJS.WritableStream, color: string, avatar: string, text: string}} Client */
 
@@ -17,8 +20,8 @@ const makeAvatar = () => {
     const start = 0x8C
     const end = 0xBC
     const diff = end - start
-    const item = Math.floor(start + Math.random()*diff)
-    const emoji = Buffer.from([0xF0,0x9F,0x90, item])
+    const item = Math.floor(start + Math.random() * diff)
+    const emoji = Buffer.from([0xF0, 0x9F, 0x90, item])
     return emoji.toString()
 }
 
@@ -50,9 +53,9 @@ const prependChuncks = (prepend, append) => {
     })
 }
 
-const broadcast = (message, fromId)=> {
-    for(const c of clients){
-        if(c.id !== fromId){
+const broadcast = (message, fromId) => {
+    for (const c of clients) {
+        if (c.id !== fromId) {
             c.client.write(message)
         }
     }
@@ -72,50 +75,50 @@ const broadcastWritable = fromId => new Writable({
  * @param {Client} client 
  * @returns 
  */
- const messagePipeline = (client) => pipeline(
+const messagePipeline = (client) => pipeline(
     client.client,
     prependChuncks(client.text, colors.Reset),
     broadcastWritable(client.id),
     (err) => {
-        if(err){
+        if (err) {
             console.log('MessagePipeline Error:', err.message)
         }
     }
 )
 
-function createClient(port) {
+function createClient(port, host) {
     console.log(`Connecting to ${port}`)
     const client = new net.Socket();
-    client
-        .pipe(process.stdout)
+    client.pipe(process.stdout)
     client.on('connect', () => {
-            console.log('Connected')
-            process.on('SIGINT', () => {
-                client.write('Bye!\n')
-                client.destroy()
-                process.exit(0)
-            })
+        console.log('Connected')
+        process.on('SIGINT', () => {
+            client.write('Bye!\n')
+            client.destroy()
+            process.exit(0)
         })
+    })
         .on('ready', () => process.stdin.pipe(client))
         .on('error', err => {
             console.log('Socket Error:', err.message)
             createServer(port)
         })
         .connect({
-            port
+            port,
+            host,
         })
-    
+
 }
 
 function createServer(port) {
     console.log('Creating Server...')
     historyFile = createWriteStream(historyFileName)
-    
+
     const server = net.createServer()
     server.on('listening', () => {
-            console.log(`Listening on ${server.address().address}:${server.address().port}`)
-            console.log('-----------------------------------------------')
-        })
+        console.log(`Listening on ${server.address().address}:${server.address().port}`)
+        console.log('-----------------------------------------------')
+    })
         .on('close', () => console.log('Closed'))
         .on('error', err => console.log('Error:', err.message))
         .on('connection', (socket) => {
@@ -127,4 +130,4 @@ function createServer(port) {
     server.listen(port)
 }
 
-createClient(3333)
+createClient(PORT, HOST)
